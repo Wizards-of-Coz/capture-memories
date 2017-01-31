@@ -12,6 +12,7 @@ except ImportError:
 
 try:
     from PIL import Image
+    from PIL import ImageFilter
 except ImportError:
     sys.exit("Cannot import from PIL: Do `pip3 install --user Pillow` to install")
 
@@ -81,6 +82,10 @@ class CaptureImage(WOC):
 
         self.coz.display_oled_face_image(screen_data, duration_s * 1000.0)
 
+    async def instagramLogin(self):
+        self.insta = InstagramAPI("wizardsofcoz", "Wizards!!")
+        self.insta.login()  # login
+
     async def on_object_tapped(self, event, *, obj, tap_count, tap_duration, **kw):
         # print("Received	a	tap	event", event)
         # print("Received	a	tap	event", obj.object_id)
@@ -109,25 +114,38 @@ class CaptureImage(WOC):
 
         await self.showImageOnFace(image, 5);
 
-        r_image = image.raw_image;
+        r_image = image.raw_image
         img = r_image.convert('L')
         img.save("output.jpg")
 
-        im = Image.open("output.jpg")
-        pix = im.load()
-        newImage = im.convert('RGB');
-        pix2 = newImage.load();
-        for i in range(0,im.width):
-            for j in range(0,im.height):
-                if pix[i,j] < 128:
-                    pix2[i, j] = (0,0,255)
-                else:
-                    pix2[i, j] = (0, 0, 0)
-        newImage.save("new.jpg");
+        img.filter(ImageFilter.BLUR).save("Images/Blur.jpg")
+        img.filter(ImageFilter.CONTOUR).save("Images/CONTOUR.jpg")
+        img.filter(ImageFilter.DETAIL).save("Images/DETAIL.jpg")
+        img.filter(ImageFilter.EDGE_ENHANCE).save("Images/EDGE_ENHANCE.jpg")
+        img.filter(ImageFilter.EDGE_ENHANCE_MORE).save("Images/EDGE_ENHANCE_MORE.jpg")
+        img.filter(ImageFilter.EMBOSS).save("Images/EMBOSS.jpg")
+        img.filter(ImageFilter.FIND_EDGES).save("Images/FIND_EDGES.jpg")
+        img.filter(ImageFilter.SMOOTH).save("Images/SMOOTH.jpg")
+        img.filter(ImageFilter.SMOOTH_MORE).save("Images/SMOOTH_MORE.jpg")
+        img.filter(ImageFilter.SHARPEN).save("Images/SHARPEN.jpg")
+        img.filter(ImageFilter.MaxFilter).save("Images/MaxFilter.jpg")
+        img.filter(ImageFilter.ModeFilter).save("Images/ModeFilter.jpg")
+        img.filter(ImageFilter.MedianFilter).save("Images/MedianFilter.jpg")
+        img.filter(ImageFilter.UnsharpMask).save("Images/UnsharpMask.jpg")
 
-        insta = InstagramAPI("wizardsofcoz", "Wizards!!")
-        insta.login() # login
-        insta.uploadPhoto("output.jpg");
+        # pix = im.load()
+        # newImage = im.convert('RGB');
+        # pix2 = newImage.load();
+        # for i in range(0,im.width):
+        #     for j in range(0,im.height):
+        #         if pix[i,j] < 128:
+        #             pix2[i, j] = (0,0,255)
+        #         else:
+        #             pix2[i, j] = (0, 0, 0)
+        # newImage.save("new.jpg");
+
+        await self.instagramLogin();
+        # self.insta.uploadPhoto("output.jpg","#memorieswithcozmo");
 
         for cube in self.cubes:
             cube.set_lights(cozmo.lights.green_light)
