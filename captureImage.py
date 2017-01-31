@@ -1,20 +1,23 @@
 import cozmo
 import asyncio
-import pygame
 from Common.woc import WOC
 from Instagram.InstagramAPI import InstagramAPI
 from Common.colors import Colors
+import speech_recognition as sr
+import _thread
+import time
+
 
 try:
     import numpy as np
 except ImportError:
-    sys.exit("Cannot import numpy: Do `pip3 install --user numpy` to install")
+    print("Cannot import numpy: Do `pip3 install --user numpy` to install")
 
 try:
     from PIL import Image
     from PIL import ImageFilter
 except ImportError:
-    sys.exit("Cannot import from PIL: Do `pip3 install --user Pillow` to install")
+    print("Cannot import from PIL: Do `pip3 install --user Pillow` to install")
 
 '''
 @class CaptureImage
@@ -64,6 +67,11 @@ class CaptureImage(WOC):
             self.cubes[2].set_lights(Colors.GREEN);
             self.coz.world.add_event_handler(cozmo.objects.EvtObjectTapped, self.on_object_tapped)
 
+            self.found_meaningfulAudio = False;
+            # asyncio.ensure_future(self.take_input())
+            _thread.start_new_thread(self.take_input, ())
+
+
             self.face_dimensions = cozmo.oled_face.SCREEN_WIDTH, cozmo.oled_face.SCREEN_HALF_HEIGHT
             self.image_taken = False;
             while self.image_taken == False:
@@ -71,7 +79,6 @@ class CaptureImage(WOC):
                 if latest_image is not None:
                     duration_s = 0.1
                     await self.showImageOnFace(latest_image, duration_s);
-
                 await asyncio.sleep(duration_s)
 
     async def showImageOnFace(self, image, duration_s):
@@ -82,37 +89,63 @@ class CaptureImage(WOC):
 
         self.coz.display_oled_face_image(screen_data, duration_s * 1000.0)
 
-    async def instagramLogin(self):
-        self.insta = InstagramAPI("wizardsofcoz", "Wizards!!")
-        self.insta.login()  # login
+    def caughtAudio(self, text):
+        if "ea" in text or "ee" in text:
+            self.coz.set_all_backpack_lights(Colors.GREEN)
+            self.found_meaningfulAudio = True;
+            self.clickPicture();
+        else:
+            self.coz.set_all_backpack_lights(Colors.RED)
+            time.sleep(1);
+            self.coz.set_backpack_lights_off();
+            self.take_input();
 
-    async def on_object_tapped(self, event, *, obj, tap_count, tap_duration, **kw):
-        # print("Received	a	tap	event", event)
-        # print("Received	a	tap	event", obj.object_id)
+    def take_input(self):
+        # Record Audio
+        if self.found_meaningfulAudio == False:
+            r = sr.Recognizer()
+            with sr.Microphone(chunk_size=512) as source:
+                audio = r.listen(source)
+
+            try:
+                text = r.recognize_google(audio);
+                self.caughtAudio(text);
+
+            except sr.UnknownValueError:
+                print("Google Speech Recognition could not understand audio")
+                self.coz.set_all_backpack_lights(Colors.RED)
+                time.sleep(1);
+                self.coz.set_backpack_lights_off();
+                self.take_input();
+
+            except sr.RequestError as e:
+                print("Could not request results from Google Speech Recognition service; {0}".format(e))
+
+
+    def clickPicture(self):
         self.image_taken = True;
 
         i = 0;
         while i < 3:
             for cube in self.cubes:
-                cube.set_lights(cozmo.lights.green_light);
-            await asyncio.sleep(0.2);
+                cube.set_lights(Colors.GREEN);
+            time.sleep(0.2);
             for cube in self.cubes:
                 cube.set_lights_off();
-            await asyncio.sleep(0.2);
+            time.sleep(0.2);
             i += 1
 
-        await asyncio.sleep(1);
+        time.sleep(0.1);
 
         for cube in self.cubes:
-            cube.set_lights(cozmo.lights.red_light);
+            cube.set_lights(Colors.RED);
 
         image = self.coz.world.latest_image
         while image is None:
-            await asyncio.sleep(0.1)
+            time.sleep(0.1)
             image = self.coz.world.latest_image
 
-
-        await self.showImageOnFace(image, 5);
+        # self.showImageOnFace(image, 5)
 
         r_image = image.raw_image
         img = r_image.convert('L')
@@ -133,24 +166,21 @@ class CaptureImage(WOC):
         img.filter(ImageFilter.MedianFilter).save("Images/MedianFilter.jpg")
         img.filter(ImageFilter.UnsharpMask).save("Images/UnsharpMask.jpg")
 
-        # pix = im.load()
-        # newImage = im.convert('RGB');
-        # pix2 = newImage.load();
-        # for i in range(0,im.width):
-        #     for j in range(0,im.height):
-        #         if pix[i,j] < 128:
-        #             pix2[i, j] = (0,0,255)
-        #         else:
-        #             pix2[i, j] = (0, 0, 0)
-        # newImage.save("new.jpg");
-
-        await self.instagramLogin();
-        # self.insta.uploadPhoto("output.jpg","#memorieswithcozmo");
+        self.insta = InstagramAPI("wizardsofcoz", "Wizards!!")
+        self.insta.login()  # login
+        self.insta.uploadPhoto("output.jpg", "#memorieswithcozmo");
 
         for cube in self.cubes:
-            cube.set_lights(cozmo.lights.green_light)
+            cube.set_lights(Colors.GREEN)
+
+        time.sleep(1);
 
         self.exit_flag = True;
+
+    async def on_object_tapped(self, event, *, obj, tap_count, tap_duration, **kw):
+        # print("Received	a	tap	event", event)
+        # print("Received	a	tap	event", obj.object_id)
+        self.clickPicture();
 
 if __name__ == '__main__':
     CaptureImage()
