@@ -6,7 +6,7 @@ from Common.colors import Colors
 import speech_recognition as sr
 import _thread
 import time
-
+import os
 
 try:
     import numpy as np
@@ -90,6 +90,7 @@ class CaptureImage(WOC):
         self.coz.display_oled_face_image(screen_data, duration_s * 1000.0)
 
     def caughtAudio(self, text):
+        print("the phrase was " + text);
         if "ea" in text or "ee" in text:
             self.coz.set_all_backpack_lights(Colors.GREEN)
             self.found_meaningfulAudio = True;
@@ -145,12 +146,20 @@ class CaptureImage(WOC):
             time.sleep(0.1)
             image = self.coz.world.latest_image
 
-        # self.showImageOnFace(image, 5)
+        resized_image = image.raw_image.resize(self.face_dimensions, Image.BICUBIC)
+        resized_image = resized_image.transpose(Image.FLIP_LEFT_RIGHT)
+        grayscale_image = resized_image.convert('L')
+        mean_value = np.mean(grayscale_image.getdata())
+        screen_data = cozmo.oled_face.convert_image_to_screen_data(resized_image, pixel_threshold=mean_value)
+        self.coz.display_oled_face_image(screen_data, 10000, in_parallel= True)
 
         r_image = image.raw_image
         img = r_image.convert('L')
         img.save("output.jpg")
 
+        # This block is to save filters for the images into an Images folder
+        if not os.path.exists("Images"):
+            os.makedirs("Images")
         img.filter(ImageFilter.BLUR).save("Images/Blur.jpg")
         img.filter(ImageFilter.CONTOUR).save("Images/CONTOUR.jpg")
         img.filter(ImageFilter.DETAIL).save("Images/DETAIL.jpg")
@@ -173,7 +182,10 @@ class CaptureImage(WOC):
         for cube in self.cubes:
             cube.set_lights(Colors.GREEN)
 
-        time.sleep(1);
+        self.coz.say_text(", Memory Captured", in_parallel=True).wait_for_completed()
+        time.sleep(4);
+        self.coz.play_anim("anim_pounce_success_02",loop_count=1, in_parallel=True).wait_for_completed()
+        time.sleep(5);
 
         self.exit_flag = True;
 
