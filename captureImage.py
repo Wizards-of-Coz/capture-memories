@@ -36,7 +36,7 @@ class CaptureImage(WOC):
         asyncio.set_event_loop(coz_conn._loop)
         self.coz = await coz_conn.wait_for_robot()
 
-        asyncio.ensure_future(self.start_program());
+        await self.start_program()
 
         while not self.exit_flag:
             await asyncio.sleep(0)
@@ -68,41 +68,51 @@ class CaptureImage(WOC):
             self.coz.world.add_event_handler(cozmo.objects.EvtObjectTapped, self.on_object_tapped)
 
             self.found_meaningfulAudio = False;
-            # asyncio.ensure_future(self.take_input())
-            _thread.start_new_thread(self.take_input, ())
 
+            _thread.start_new_thread(self.start_Audio_Thread, ())
+
+            self.latest_Image = None;
 
             self.face_dimensions = cozmo.oled_face.SCREEN_WIDTH, cozmo.oled_face.SCREEN_HALF_HEIGHT
             self.image_taken = False;
-            while self.image_taken == False:
-                latest_image = self.coz.world.latest_image
-                if latest_image is not None:
-                    duration_s = 0.1
-                    await self.showImageOnFace(latest_image, duration_s);
-                await asyncio.sleep(duration_s)
 
-    async def showImageOnFace(self, image, duration_s):
-        resized_image = image.raw_image.resize(self.face_dimensions, Image.BICUBIC)
+            self.handler1 = self.coz.world.add_event_handler(cozmo.camera.EvtNewRawCameraImage, self.on_raw_cam_image)
+
+            self.do_final_anim = False;
+            while True:
+                if self.do_final_anim:
+                    print("came here");
+                    self.coz.abort_all_actions();
+                    await self.coz.say_text(", Memory Captured").wait_for_completed()
+                    await self.coz.play_anim("anim_pounce_success_02", loop_count=1, in_parallel=True).wait_for_completed()
+                    break;
+                else:
+                    await asyncio.sleep(0.1);
+            self.exit_flag = True
+
+    async def on_raw_cam_image(self, event, *, image, **kw):
+        self.latest_Image = image;
+        resized_image = image.resize(self.face_dimensions, Image.BICUBIC)
         resized_image = resized_image.transpose(Image.FLIP_LEFT_RIGHT)
         pixel_threshold = await self.calc_pixel_threshold(resized_image)
         screen_data = cozmo.oled_face.convert_image_to_screen_data(resized_image, pixel_threshold=pixel_threshold)
 
-        self.coz.display_oled_face_image(screen_data, duration_s * 1000.0)
+        self.coz.display_oled_face_image(screen_data, 0.1 * 1000.0)
 
-    def caughtAudio(self, text):
+    async def caughtAudio(self, text):
         print("the phrase was " + text);
         if "ea" in text or "ee" in text:
             self.coz.set_all_backpack_lights(Colors.GREEN)
             self.found_meaningfulAudio = True;
-            self.clickPicture();
+            await self.clickPicture();
         else:
             self.coz.set_all_backpack_lights(Colors.RED)
             time.sleep(1);
             self.coz.set_backpack_lights_off();
-            self.take_input();
+            await self.captureAudio();
 
-    def take_input(self):
-        # Record Audio
+    async def captureAudio(self):
+        print("Taking input");
         if self.found_meaningfulAudio == False:
             r = sr.Recognizer()
             with sr.Microphone(chunk_size=512) as source:
@@ -110,51 +120,55 @@ class CaptureImage(WOC):
 
             try:
                 text = r.recognize_google(audio);
-                self.caughtAudio(text);
+                await self.caughtAudio(text);
 
             except sr.UnknownValueError:
                 print("Google Speech Recognition could not understand audio")
                 self.coz.set_all_backpack_lights(Colors.RED)
-                time.sleep(1);
+                await asyncio.sleep(1);
                 self.coz.set_backpack_lights_off();
-                self.take_input();
+                await self.captureAudio();
 
             except sr.RequestError as e:
                 print("Could not request results from Google Speech Recognition service; {0}".format(e))
 
+    def start_Audio_Thread(self):
+        # Record Audio
+        print("Take input");
+        loop = asyncio.new_event_loop()
+        asyncio.set_event_loop(loop)
+        loop.run_until_complete(self.captureAudio())
 
-    def clickPicture(self):
+    async def clickPicture(self):
         self.image_taken = True;
 
         i = 0;
         while i < 3:
             for cube in self.cubes:
                 cube.set_lights(Colors.GREEN);
-            time.sleep(0.2);
+            await asyncio.sleep(0.2);
             for cube in self.cubes:
                 cube.set_lights_off();
-            time.sleep(0.2);
+            await asyncio.sleep(0.2);
             i += 1
 
-        time.sleep(0.1);
+        await asyncio.sleep(0.1);
 
         for cube in self.cubes:
             cube.set_lights(Colors.RED);
 
-        image = self.coz.world.latest_image
-        while image is None:
-            time.sleep(0.1)
-            image = self.coz.world.latest_image
+        image = self.latest_Image
 
-        resized_image = image.raw_image.resize(self.face_dimensions, Image.BICUBIC)
+        self.coz.world.remove_event_handler(cozmo.camera.EvtNewRawCameraImage, self.handler1);
+
+        resized_image = image.resize(self.face_dimensions, Image.BICUBIC)
         resized_image = resized_image.transpose(Image.FLIP_LEFT_RIGHT)
         grayscale_image = resized_image.convert('L')
         mean_value = np.mean(grayscale_image.getdata())
         screen_data = cozmo.oled_face.convert_image_to_screen_data(resized_image, pixel_threshold=mean_value)
         self.coz.display_oled_face_image(screen_data, 10000, in_parallel= True)
 
-        r_image = image.raw_image
-        img = r_image.convert('L')
+        img = image.convert('L')
         img.save("output.jpg")
 
         # This block is to save filters for the images into an Images folder
@@ -177,22 +191,17 @@ class CaptureImage(WOC):
 
         self.insta = InstagramAPI("wizardsofcoz", "Wizards!!")
         self.insta.login()  # login
-        self.insta.uploadPhoto("output.jpg", "#memorieswithcozmo");
+        # self.insta.uploadPhoto("output.jpg", "#memorieswithcozmo");
 
         for cube in self.cubes:
             cube.set_lights(Colors.GREEN)
 
-        self.coz.say_text(", Memory Captured", in_parallel=True).wait_for_completed()
-        time.sleep(4);
-        self.coz.play_anim("anim_pounce_success_02",loop_count=1, in_parallel=True).wait_for_completed()
-        time.sleep(5);
-
-        self.exit_flag = True;
+        self.do_final_anim = True;
 
     async def on_object_tapped(self, event, *, obj, tap_count, tap_duration, **kw):
         # print("Received	a	tap	event", event)
         # print("Received	a	tap	event", obj.object_id)
-        self.clickPicture();
+        await self.clickPicture();
 
 if __name__ == '__main__':
     CaptureImage()
