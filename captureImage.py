@@ -32,14 +32,19 @@ class CaptureImage(WOC):
     VIDEO_IMAGES_FOLDER_NAME = "VideoImages"
     OUTPUT_IMAGE_NAME = "Output.jpg"
     INSTAGRAM_USER_NAME = "wizardsofcoz"
-    INSTAGRAM_PASSWORD = "Wizards!!"
+    INSTAGRAM_PASSWORD = ""
     OUTPUT_VIDEO_NAME = "video.avi"
+    INSTAGRAM_FILE_NAME = "instagram.txt"
 
     def __init__(self, *a, **kw):
         WOC.__init__(self)
 
         if os.path.exists(self.OUTPUT_VIDEO_NAME):
             os.remove(self.OUTPUT_VIDEO_NAME)
+
+        if self.INSTAGRAM_PASSWORD == "":
+            with open(self.INSTAGRAM_FILE_NAME) as f:
+                self.INSTAGRAM_PASSWORD = f.readlines()[0];
 
         cozmo.setup_basic_logging()
         cozmo.connect(self.run)
