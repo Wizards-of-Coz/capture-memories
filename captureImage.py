@@ -8,6 +8,8 @@ import _thread
 import time
 import os
 
+from cv2 import VideoWriter, VideoWriter_fourcc, imread, resize
+
 try:
     import numpy as np
 except ImportError:
@@ -26,8 +28,18 @@ Cozmo takes a picture and uploads the image to Instagram
 '''
 
 class CaptureImage(WOC):
+    FILTER_FOLDER_NAME = "Filters"
+    VIDEO_IMAGES_FOLDER_NAME = "VideoImages"
+    OUTPUT_IMAGE_NAME = "Output.jpg"
+    INSTAGRAM_USER_NAME = "wizardsofcoz"
+    INSTAGRAM_PASSWORD = "Wizards!!"
+    OUTPUT_VIDEO_NAME = "video.avi"
+
     def __init__(self, *a, **kw):
         WOC.__init__(self)
+
+        if os.path.exists(self.OUTPUT_VIDEO_NAME):
+            os.remove(self.OUTPUT_VIDEO_NAME)
 
         cozmo.setup_basic_logging()
         cozmo.connect(self.run)
@@ -146,9 +158,11 @@ class CaptureImage(WOC):
         while i < 3:
             for cube in self.cubes:
                 cube.set_lights(Colors.GREEN);
+                self.coz.set_all_backpack_lights(Colors.GREEN)
             await asyncio.sleep(0.2);
             for cube in self.cubes:
                 cube.set_lights_off();
+                self.coz.set_backpack_lights_off();
             await asyncio.sleep(0.2);
             i += 1
 
@@ -156,10 +170,21 @@ class CaptureImage(WOC):
 
         for cube in self.cubes:
             cube.set_lights(Colors.RED);
+            self.coz.set_all_backpack_lights(Colors.RED)
 
-        image = self.latest_Image
+        if not os.path.exists(self.VIDEO_IMAGES_FOLDER_NAME):
+            os.makedirs(self.VIDEO_IMAGES_FOLDER_NAME)
+        max_count = 60;
+        cur_count = 0;
+        while cur_count < max_count:
+            self.latest_Image.save(self.VIDEO_IMAGES_FOLDER_NAME+"/image" + str(cur_count) + ".jpg");
+            await asyncio.sleep(0.1);
+            cur_count += 1;
 
         self.coz.world.remove_event_handler(cozmo.camera.EvtNewRawCameraImage, self.handler1);
+
+
+        image = self.latest_Image
 
         resized_image = image.resize(self.face_dimensions, Image.BICUBIC)
         resized_image = resized_image.transpose(Image.FLIP_LEFT_RIGHT)
@@ -169,34 +194,68 @@ class CaptureImage(WOC):
         self.coz.display_oled_face_image(screen_data, 10000, in_parallel= True)
 
         img = image.convert('L')
-        img.save("output.jpg")
+        img.save(self.OUTPUT_IMAGE_NAME)
 
         # This block is to save filters for the images into an Images folder
-        if not os.path.exists("Images"):
-            os.makedirs("Images")
-        img.filter(ImageFilter.BLUR).save("Images/Blur.jpg")
-        img.filter(ImageFilter.CONTOUR).save("Images/CONTOUR.jpg")
-        img.filter(ImageFilter.DETAIL).save("Images/DETAIL.jpg")
-        img.filter(ImageFilter.EDGE_ENHANCE).save("Images/EDGE_ENHANCE.jpg")
-        img.filter(ImageFilter.EDGE_ENHANCE_MORE).save("Images/EDGE_ENHANCE_MORE.jpg")
-        img.filter(ImageFilter.EMBOSS).save("Images/EMBOSS.jpg")
-        img.filter(ImageFilter.FIND_EDGES).save("Images/FIND_EDGES.jpg")
-        img.filter(ImageFilter.SMOOTH).save("Images/SMOOTH.jpg")
-        img.filter(ImageFilter.SMOOTH_MORE).save("Images/SMOOTH_MORE.jpg")
-        img.filter(ImageFilter.SHARPEN).save("Images/SHARPEN.jpg")
-        img.filter(ImageFilter.MaxFilter).save("Images/MaxFilter.jpg")
-        img.filter(ImageFilter.ModeFilter).save("Images/ModeFilter.jpg")
-        img.filter(ImageFilter.MedianFilter).save("Images/MedianFilter.jpg")
-        img.filter(ImageFilter.UnsharpMask).save("Images/UnsharpMask.jpg")
+        if not os.path.exists(self.FILTER_FOLDER_NAME):
+            os.makedirs(self.FILTER_FOLDER_NAME)
+        img.filter(ImageFilter.BLUR).save(self.FILTER_FOLDER_NAME+"/Blur.jpg")
+        img.filter(ImageFilter.CONTOUR).save(self.FILTER_FOLDER_NAME+"/CONTOUR.jpg")
+        img.filter(ImageFilter.DETAIL).save(self.FILTER_FOLDER_NAME+"/DETAIL.jpg")
+        img.filter(ImageFilter.EDGE_ENHANCE).save(self.FILTER_FOLDER_NAME+"/EDGE_ENHANCE.jpg")
+        img.filter(ImageFilter.EDGE_ENHANCE_MORE).save(self.FILTER_FOLDER_NAME+"/EDGE_ENHANCE_MORE.jpg")
+        img.filter(ImageFilter.EMBOSS).save(self.FILTER_FOLDER_NAME+"/EMBOSS.jpg")
+        img.filter(ImageFilter.FIND_EDGES).save(self.FILTER_FOLDER_NAME+"/FIND_EDGES.jpg")
+        img.filter(ImageFilter.SMOOTH).save(self.FILTER_FOLDER_NAME+"/SMOOTH.jpg")
+        img.filter(ImageFilter.SMOOTH_MORE).save(self.FILTER_FOLDER_NAME+"/SMOOTH_MORE.jpg")
+        img.filter(ImageFilter.SHARPEN).save(self.FILTER_FOLDER_NAME+"/SHARPEN.jpg")
+        img.filter(ImageFilter.MaxFilter).save(self.FILTER_FOLDER_NAME+"/MaxFilter.jpg")
+        img.filter(ImageFilter.ModeFilter).save(self.FILTER_FOLDER_NAME+"/ModeFilter.jpg")
+        img.filter(ImageFilter.MedianFilter).save(self.FILTER_FOLDER_NAME+"/MedianFilter.jpg")
+        img.filter(ImageFilter.UnsharpMask).save(self.FILTER_FOLDER_NAME+"/UnsharpMask.jpg")
 
-        self.insta = InstagramAPI("wizardsofcoz", "Wizards!!")
-        self.insta.login()  # login
+        await self.make_video_and_upload();
+
+        # self.insta = InstagramAPI("wizardsofcoz", "Wizards!!")
+        # self.insta.login()  # login
         # self.insta.uploadPhoto("output.jpg", "#memorieswithcozmo");
 
         for cube in self.cubes:
             cube.set_lights(Colors.GREEN)
+            self.coz.set_all_backpack_lights(Colors.GREEN)
 
         self.do_final_anim = True;
+
+    async def make_video_and_upload(self):
+        outvid = self.OUTPUT_VIDEO_NAME
+        fps = 24;
+        size = (320, 240);
+        is_color = 1;
+
+        fourcc = VideoWriter_fourcc(*'XVID')
+        vid = None
+        images = []
+        for i in range(0, 60):
+            images.append(self.VIDEO_IMAGES_FOLDER_NAME+"/image" + str(i) + ".jpg")
+
+        print(images);
+
+        for image in images:
+            if not os.path.exists(image):
+                raise FileNotFoundError(image)
+            img = imread(image)
+            if vid is None:
+                if size is None:
+                    size = img.shape[1], img.shape[0]
+                vid = VideoWriter(outvid, fourcc, float(fps), size, is_color)
+            if size[0] != img.shape[1] and size[1] != img.shape[0]:
+                img = resize(img, size)
+            vid.write(img)
+        vid.release()
+
+        self.insta = InstagramAPI(self.INSTAGRAM_USER_NAME, self.INSTAGRAM_PASSWORD)
+        self.insta.login()  # login
+        self.insta.uploadVideo("video.avi", thumbnail=self.OUTPUT_IMAGE_NAME, caption="#memorieswithcozmo");
 
     async def on_object_tapped(self, event, *, obj, tap_count, tap_duration, **kw):
         # print("Received	a	tap	event", event)
