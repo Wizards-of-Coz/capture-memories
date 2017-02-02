@@ -17,7 +17,7 @@ import sys
 if sys.version_info.major == 3:
     import urllib.parse
 
-from Instagram.ImageUtils import getImageSize
+from ImageUtils import getImageSize
 from requests_toolbelt import MultipartEncoder
 from moviepy.editor import VideoFileClip
 

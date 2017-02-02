@@ -1,7 +1,7 @@
 import cozmo
 import asyncio
 from Common.woc import WOC
-from Instagram.InstagramAPI import InstagramAPI
+from InstagramAPI import InstagramAPI
 from Common.colors import Colors
 import speech_recognition as sr
 import _thread
