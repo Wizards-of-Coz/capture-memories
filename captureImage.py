@@ -31,8 +31,8 @@ class CaptureImage(WOC):
     FILTER_FOLDER_NAME = "Filters"
     VIDEO_IMAGES_FOLDER_NAME = "VideoImages"
     OUTPUT_IMAGE_NAME = "Output.jpg"
-    INSTAGRAM_USER_NAME = "wizardsofcoz"
-    INSTAGRAM_PASSWORD = ""
+    INSTAGRAM_USER_NAME = ""                    # Enter your Instagram Username here
+    INSTAGRAM_PASSWORD = ""                     # Enter your Instagram Password here or create a file "instagram.txt" and write the password there in the first line
     OUTPUT_VIDEO_NAME = "video.avi"
     INSTAGRAM_FILE_NAME = "instagram.txt"
 
