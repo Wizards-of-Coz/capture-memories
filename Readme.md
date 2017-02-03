@@ -15,11 +15,11 @@ The modules required in addition to the `Cozmo` module are:
 
 Common is a package included in the Git repo: https://github.com/Wizards-of-Coz/Common
 
-You will need to install OpenCV. You can follow the instructions on their website.
+I have used OpenCV3 with the project. You will need to install OpenCV following the instructions on their website.
 
 The other modules can be installed via pip if not already present:
-`pip install numpy`
-`pip install Pillow`
-`pip install pygame`
-`pip install moviepy`
-`pip install requests_toolbelt`
+`pip3 install numpy`
+`pip3 install Pillow`
+`pip3 install pygame`
+`pip3 install moviepy`
+`pip3 install requests_toolbelt`
