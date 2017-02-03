@@ -28,13 +28,13 @@ Cozmo takes a picture and uploads the image to Instagram
 '''
 
 class CaptureImage(WOC):
-    FILTER_FOLDER_NAME = "Filters"
-    VIDEO_IMAGES_FOLDER_NAME = "VideoImages"
-    OUTPUT_IMAGE_NAME = "Output.jpg"
+    FILTER_FOLDER_NAME = "Filters"              # Folder name where all the 14 filters generated are saved
+    VIDEO_IMAGES_FOLDER_NAME = "VideoImages"    # Folder name where the images are saved
+    OUTPUT_IMAGE_NAME = "thumbnail.jpg"         # Thumbnail Image name
     INSTAGRAM_USER_NAME = ""                    # Enter your Instagram Username here
     INSTAGRAM_PASSWORD = ""                     # Enter your Instagram Password here or create a file "instagram.txt" and write the password there in the first line
-    OUTPUT_VIDEO_NAME = "video.avi"
-    INSTAGRAM_FILE_NAME = "instagram.txt"
+    OUTPUT_VIDEO_NAME = "video.avi"             # Video name
+    INSTAGRAM_FILE_NAME = "instagram.txt"       # Text file to store your password
 
     def __init__(self, *a, **kw):
         WOC.__init__(self)
@@ -98,7 +98,6 @@ class CaptureImage(WOC):
             self.do_final_anim = False;
             while True:
                 if self.do_final_anim:
-                    print("came here");
                     self.coz.abort_all_actions();
                     await self.coz.say_text(", Memory Captured").wait_for_completed()
                     await self.coz.play_anim("anim_pounce_success_02", loop_count=1, in_parallel=True).wait_for_completed()
@@ -117,7 +116,7 @@ class CaptureImage(WOC):
         self.coz.display_oled_face_image(screen_data, 0.1 * 1000.0)
 
     async def caughtAudio(self, text):
-        print("the phrase was " + text);
+        print("You said " + text);
         if "ea" in text or "ee" in text:
             self.coz.set_all_backpack_lights(Colors.GREEN)
             self.found_meaningfulAudio = True;
@@ -129,7 +128,6 @@ class CaptureImage(WOC):
             await self.captureAudio();
 
     async def captureAudio(self):
-        print("Taking input");
         if self.found_meaningfulAudio == False:
             r = sr.Recognizer()
             with sr.Microphone(chunk_size=512) as source:
@@ -151,7 +149,6 @@ class CaptureImage(WOC):
 
     def start_Audio_Thread(self):
         # Record Audio
-        print("Take input");
         loop = asyncio.new_event_loop()
         asyncio.set_event_loop(loop)
         loop.run_until_complete(self.captureAudio())
@@ -179,9 +176,9 @@ class CaptureImage(WOC):
 
         if not os.path.exists(self.VIDEO_IMAGES_FOLDER_NAME):
             os.makedirs(self.VIDEO_IMAGES_FOLDER_NAME)
-        max_count = 60;
+        self.max_count = 60;                                                 # Number of images to make the video
         cur_count = 0;
-        while cur_count < max_count:
+        while cur_count < self.max_count:
             self.latest_Image.save(self.VIDEO_IMAGES_FOLDER_NAME+"/image" + str(cur_count) + ".jpg");
             await asyncio.sleep(0.1);
             cur_count += 1;
@@ -219,9 +216,13 @@ class CaptureImage(WOC):
         img.filter(ImageFilter.MedianFilter).save(self.FILTER_FOLDER_NAME+"/MedianFilter.jpg")
         img.filter(ImageFilter.UnsharpMask).save(self.FILTER_FOLDER_NAME+"/UnsharpMask.jpg")
 
+        # comment this to not upload a video
         await self.make_video_and_upload();
 
-        # self.insta = InstagramAPI("wizardsofcoz", "Wizards!!")
+
+        # uncomment this blockto upload a photo instead of the video
+
+        # self.insta = InstagramAPI(self.INSTAGRAM_USER_NAME, self.INSTAGRAM_PASSWORD)
         # self.insta.login()  # login
         # self.insta.uploadPhoto("output.jpg", "#memorieswithcozmo");
 
@@ -240,7 +241,7 @@ class CaptureImage(WOC):
         fourcc = VideoWriter_fourcc(*'XVID')
         vid = None
         images = []
-        for i in range(0, 60):
+        for i in range(0, self.max_count):
             images.append(self.VIDEO_IMAGES_FOLDER_NAME+"/image" + str(i) + ".jpg")
 
         print(images);
