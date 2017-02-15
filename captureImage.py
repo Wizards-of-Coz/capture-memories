@@ -1,14 +1,17 @@
 import cozmo
 import asyncio
 from Common.woc import WOC
-from InstagramAPI import InstagramAPI
+from Instagram.InstagramAPI import InstagramAPI
 from Common.colors import Colors
 import speech_recognition as sr
 import _thread
 import time
 import os
+import sys
 
 from cv2 import VideoWriter, VideoWriter_fourcc, imread, resize
+
+sys.path.append(os.path.abspath('Instagram/'))
 
 try:
     import numpy as np
@@ -31,7 +34,7 @@ class CaptureImage(WOC):
     FILTER_FOLDER_NAME = "Filters"              # Folder name where all the 14 filters generated are saved
     VIDEO_IMAGES_FOLDER_NAME = "VideoImages"    # Folder name where the images are saved
     OUTPUT_IMAGE_NAME = "thumbnail.jpg"         # Thumbnail Image name
-    INSTAGRAM_USER_NAME = ""                    # Enter your Instagram Username here
+    INSTAGRAM_USER_NAME = "wizardsofcoz"        # Enter your Instagram Username here
     INSTAGRAM_PASSWORD = ""                     # Enter your Instagram Password here or create a file "instagram.txt" and write the password there in the first line
     OUTPUT_VIDEO_NAME = "video.avi"             # Video name
     INSTAGRAM_FILE_NAME = "instagram.txt"       # Text file to store your password
@@ -45,6 +48,9 @@ class CaptureImage(WOC):
         if self.INSTAGRAM_PASSWORD == "":
             with open(self.INSTAGRAM_FILE_NAME) as f:
                 self.INSTAGRAM_PASSWORD = f.readlines()[0];
+
+        self.insta = InstagramAPI(self.INSTAGRAM_USER_NAME, self.INSTAGRAM_PASSWORD)
+        self.insta.login()  # login
 
         cozmo.setup_basic_logging()
         cozmo.connect(self.run)
@@ -72,16 +78,15 @@ class CaptureImage(WOC):
         look_around = self.coz.start_behavior(cozmo.behavior.BehaviorTypes.LookAroundInPlace)
 
         try:
-            self.cubes = await self.coz.world.wait_until_observe_num_objects(3, object_type = cozmo.objects.LightCube,timeout=60)
+            self.cubes = await self.coz.world.wait_until_observe_num_objects(1, object_type = cozmo.objects.LightCube,timeout=60)
         except asyncio.TimeoutError:
             print("Didn't find a cube :-(")
             return
         finally:
             look_around.stop()
             await self.coz.set_head_angle(cozmo.robot.MAX_HEAD_ANGLE, in_parallel= True).wait_for_completed()
-            self.cubes[0].set_lights(Colors.GREEN);
-            self.cubes[1].set_lights(Colors.GREEN);
-            self.cubes[2].set_lights(Colors.GREEN);
+            for cube in self.cubes:
+                cube.set_lights(Colors.GREEN);
             self.coz.world.add_event_handler(cozmo.objects.EvtObjectTapped, self.on_object_tapped)
 
             self.found_meaningfulAudio = False;
@@ -117,7 +122,7 @@ class CaptureImage(WOC):
 
     async def caughtAudio(self, text):
         print("You said " + text);
-        if "ea" in text or "ee" in text:
+        if "ea" in text or "ee" in text or "ie" in text:
             self.coz.set_all_backpack_lights(Colors.GREEN)
             self.found_meaningfulAudio = True;
             await self.clickPicture();
@@ -130,6 +135,7 @@ class CaptureImage(WOC):
     async def captureAudio(self):
         if self.found_meaningfulAudio == False:
             r = sr.Recognizer()
+            r.energy_threshold = 5000;
             with sr.Microphone(chunk_size=512) as source:
                 audio = r.listen(source)
 
@@ -259,8 +265,6 @@ class CaptureImage(WOC):
             vid.write(img)
         vid.release()
 
-        self.insta = InstagramAPI(self.INSTAGRAM_USER_NAME, self.INSTAGRAM_PASSWORD)
-        self.insta.login()  # login
         self.insta.uploadVideo("video.avi", thumbnail=self.OUTPUT_IMAGE_NAME, caption="#memorieswithcozmo");
 
     async def on_object_tapped(self, event, *, obj, tap_count, tap_duration, **kw):
